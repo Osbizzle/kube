@@ -22,7 +22,6 @@ jobs:
       - run:
           name: Terraform init
           command: |
-            cd infra_prov_with_terraform
             terraform init -input=false
       - persist_to_workspace:
           root: .
@@ -38,7 +37,6 @@ jobs:
       - run:
           name: Terraform plan
           command: |
-            cd infra_prov_with_terraform
             terraform plan -out tfapply 
       - persist_to_workspace:
           root: .
@@ -54,7 +52,6 @@ jobs:
       - run:
           name: Terraform apply
           command: |
-            cd infra_prov_with_terraform
             terraform apply -auto-approve tfapply
       - persist_to_workspace:
           root: .
@@ -70,7 +67,6 @@ jobs:
       - run:
           name: terraform create destroy plan
           command: |
-            cd infra_prov_with_terraform
             terraform plan -destroy -out tfdestroy 
           when: on_fail
       - persist_to_workspace:
@@ -88,34 +84,14 @@ jobs:
       - run:
           name: terraform destroy
           command: |
-            cd infra_prov_with_terraform
             terraform apply -auto-approve tfdestroy
-# CONFIGURE INFRASTRUCTURE
-  container-configurations:
-    docker:
-      - image: cimg/python:3.10
-    steps: 
-      - checkout
-      - install_awscli
-      - install_ansible
-      - add_ssh_keys:
-          fingerprints: ["56:a1:e8:28:97:7e:ea:fc:4f:6d:f7:03:95:a8:58:5d"]
-      - attach_workspace:
-          at: ~/
-      - run:
-          name: Configure server
-          command: |
-            # Your code here
-            cd .circleci/ansible
-            ansible-playbook -i inventory.1 container-configurations.yml
+
   build-node.js-app:
     docker:
       - image: cimg/python:3.10
     steps:
       - checkout
-
       - run:
-        # installs a docker client that will be used to run the docker commands
           name: Install Docker client
           command: |
             set -x
@@ -129,12 +105,12 @@ jobs:
       - run:
           name: Build Docker image
           command: |
-            cd kube  
+            cd exam-node
             docker build -t exam-node .
       - run:
           name: Push to Docker Hub
           command: |
-            cd kube
+            cd exam-node
             echo "$DOCKER_PASSWORD"
             docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
             docker tag $APP:latest $DOCKER_USERNAME/$APP
@@ -159,8 +135,7 @@ jobs:
       - run:
           name: Deploy Docker image to EKS cluster
           command: |
-            sed -i "s|IMAGE|$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$DOCKER_USERNAME/$APP:latest|g" kubernetes_cluster/*yml
-            kubectl apply -f kubernetes_cluster/
+            kubectl apply -f kubernetes_exam-node/
             kubectl get pods
             kubectl get services
             
@@ -183,10 +158,8 @@ jobs:
       - run:
           name: Deploy Docker image to EKS cluster
           command: |
-            sed -i "s|IMAGE|$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$DOCKER_USERNAME/$APP:latest|g" kubernetes/*yaml
             kubectl create namespace sock-shop
             kubectl apply -f kubernetes/
-            kubectl get services namespace=sock-shop
             
   deploy-prometheus:
     docker:
